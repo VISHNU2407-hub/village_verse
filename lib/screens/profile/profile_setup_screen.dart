@@ -1,0 +1,477 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import '../../models/user_model.dart';
+import '../../services/firestore_service.dart';
+import '../../services/cloudinary_service.dart';
+import '../../utils/constants.dart';
+import '../../utils/helpers.dart';
+import '../../widgets/custom_button.dart';
+import '../../widgets/mandal_autocomplete.dart';
+
+class ProfileSetupScreen extends StatefulWidget {
+  const ProfileSetupScreen({super.key});
+
+  @override
+  State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
+}
+
+class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
+  final FirestoreService _firestoreService = FirestoreService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final ImagePicker _imagePicker = ImagePicker();
+  final CloudinaryService _cloudinaryService = CloudinaryService();
+
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _mandalController = TextEditingController();
+  final _villageController = TextEditingController();
+  final _ageController = TextEditingController();
+  String _selectedBloodGroup = '';
+  String _selectedRole = 'citizen';
+  bool _isBloodDonor = false;
+
+  bool _isLoading = false;
+  bool _isUploadingImage = false;
+  File? _selectedImage;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _mandalController.dispose();
+    _villageController.dispose();
+    _ageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'Failed to pick image: $e');
+      }
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final User? currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Upload image to Cloudinary if selected
+      String photoUrl = '';
+      if (_selectedImage != null) {
+        setState(() {
+          _isUploadingImage = true;
+        });
+        try {
+          photoUrl = await _cloudinaryService.uploadImage(_selectedImage!);
+        } catch (e) {
+          if (mounted) {
+            showErrorSnackBar(context, 'Failed to upload image: $e');
+          }
+          // Continue without image if upload fails
+        } finally {
+          setState(() {
+            _isUploadingImage = false;
+          });
+        }
+      }
+
+      // Create user model
+      final user = UserModel(
+        uid: currentUser.uid,
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        mandal: _mandalController.text.trim().toLowerCase(),
+        village: _villageController.text.trim(),
+        photoUrl: photoUrl,
+        age: _ageController.text.trim(),
+        bloodGroup: _selectedBloodGroup,
+        role: _selectedRole,
+        isBloodDonor: _isBloodDonor,
+        createdAt: DateTime.now(),
+      );
+
+      // Save to Firestore
+      await _firestoreService.saveUser(user);
+
+      if (mounted) {
+        showSuccessSnackBar(context, AppStrings.profileSaved);
+        // Navigate to guardian setup
+        Navigator.pushReplacementNamed(context, '/guardian-setup');
+      }
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'Failed to save profile: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        title: Text(
+          AppStrings.profileSetup,
+          style: const TextStyle(
+            color: AppConstants.primaryColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 20),
+
+                // Profile Avatar
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppConstants.primaryColor,
+                        width: 3,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: _selectedImage != null
+                          ? Image.file(
+                              _selectedImage!,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: 120,
+                                  height: 120,
+                                  color: Colors.grey[200],
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.broken_image,
+                                      size: 48,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          : CircleAvatar(
+                              radius: 60,
+                              backgroundColor: AppConstants.primaryColor
+                                  .withOpacity(0.1),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.camera_alt,
+                                    color: AppConstants.primaryColor,
+                                    size: 32,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _nameController.text.isNotEmpty
+                                        ? _nameController.text[0].toUpperCase()
+                                        : 'U',
+                                    style: const TextStyle(
+                                      color: AppConstants.primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 32,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _isUploadingImage
+                      ? 'Uploading image...'
+                      : 'Tap to add profile photo',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 30),
+
+                // Name Field
+                TextFormField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.fullName,
+                    prefixIcon: const Icon(Icons.person),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) => validateRequired(value, 'Name'),
+                  textInputAction: TextInputAction.next,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Phone Field
+                TextFormField(
+                  controller: _phoneController,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.phoneNumber,
+                    prefixIcon: const Icon(Icons.phone),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  validator: validatePhone,
+                  textInputAction: TextInputAction.next,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Mandal Field
+                MandalAutocomplete(
+                  controller: _mandalController,
+                  labelText: AppStrings.mandal,
+                  prefixIcon: Icons.location_city,
+                  validator: (value) => validateRequired(value, 'Mandal'),
+                  textInputAction: TextInputAction.next,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Village Field
+                TextFormField(
+                  controller: _villageController,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.village,
+                    prefixIcon: const Icon(Icons.home),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) => validateRequired(value, 'Village'),
+                  textInputAction: TextInputAction.next,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Age Field
+                TextFormField(
+                  controller: _ageController,
+                  decoration: InputDecoration(
+                    labelText: 'Age',
+                    prefixIcon: const Icon(Icons.cake),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(3),
+                  ],
+                  validator: (value) => validateRequired(value, 'Age'),
+                  textInputAction: TextInputAction.next,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Blood Group Field
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedBloodGroup.isNotEmpty
+                      ? _selectedBloodGroup
+                      : null,
+                  decoration: InputDecoration(
+                    labelText: 'Blood Group',
+                    prefixIcon: const Icon(Icons.bloodtype),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  items:
+                      const [
+                        'A+',
+                        'A-',
+                        'B+',
+                        'B-',
+                        'AB+',
+                        'AB-',
+                        'O+',
+                        'O-',
+                      ].map((String bloodGroup) {
+                        return DropdownMenuItem<String>(
+                          value: bloodGroup,
+                          child: Text(bloodGroup),
+                        );
+                      }).toList(),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedBloodGroup = newValue ?? '';
+                    });
+                  },
+                  validator: (value) => validateRequired(value, 'Blood group'),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Blood Donor Toggle
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.bloodtype,
+                            color: AppConstants.primaryColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Available to Donate Blood?',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const Spacer(),
+                          Switch(
+                            value: _isBloodDonor,
+                            onChanged: (value) {
+                              final age = int.tryParse(_ageController.text);
+                              if (age != null && age < 18) {
+                                showErrorSnackBar(
+                                  context,
+                                  'Only users above 18 can register as blood donors.',
+                                );
+                                return;
+                              }
+                              setState(() {
+                                _isBloodDonor = value;
+                              });
+                            },
+                            activeThumbColor: AppConstants.primaryColor,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Age validation message
+                      Builder(
+                        builder: (context) {
+                          final age = int.tryParse(_ageController.text);
+                          if (age != null && age < 18) {
+                            return Text(
+                              'Only users above 18 can register as blood donors.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange[700],
+                                fontStyle: FontStyle.italic,
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Role Field
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedRole,
+                  decoration: InputDecoration(
+                    labelText: 'Role',
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem<String>(
+                      value: 'citizen',
+                      child: Text('Citizen'),
+                    ),
+                    DropdownMenuItem<String>(
+                      value: 'admin',
+                      child: Text('Admin'),
+                    ),
+                  ],
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedRole = newValue ?? 'citizen';
+                    });
+                  },
+                  validator: (value) => validateRequired(value, 'Role'),
+                ),
+
+                const SizedBox(height: 32),
+
+                // Save Button
+                CustomButton(
+                  text: AppStrings.save,
+                  onPressed: _saveProfile,
+                  isLoading: _isLoading,
+                ),
+
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
