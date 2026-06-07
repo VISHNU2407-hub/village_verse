@@ -464,22 +464,16 @@ class FirestoreService {
   // Blood donor operations
   Stream<QuerySnapshot> getBloodDonors(
     String bloodGroup,
-    String mandal,
     String currentUserId,
   ) {
     print('DEBUG: getBloodDonors called');
     print('  bloodGroup: $bloodGroup');
-    print('  mandal (input): $mandal');
     print('  currentUserId: $currentUserId');
-    print(
-      '  Fetching all blood donors (filtering locally for bloodGroup and mandal)',
-    );
 
-    // Simplified query: only filter by isBloodDonor to avoid composite index issues
-    // Local filtering for bloodGroup and mandal will be done in the UI layer
     return _firestore
         .collection('users')
         .where('isBloodDonor', isEqualTo: true)
+        .where('bloodGroup', isEqualTo: bloodGroup)
         .snapshots();
   }
 

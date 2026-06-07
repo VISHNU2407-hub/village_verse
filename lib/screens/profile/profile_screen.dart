@@ -11,6 +11,8 @@ import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/mandal_autocomplete.dart';
+import '../../widgets/district_autocomplete.dart';
+
 import '../../widgets/profile_image_widget.dart';
 import '../permissions_setup_screen.dart';
 import '../auth_screen.dart';
@@ -32,6 +34,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late TextEditingController _phoneController;
   late TextEditingController _mandalController;
   late TextEditingController _villageController;
+  late TextEditingController _stateController;
+  late TextEditingController _districtController;
   late TextEditingController _ageController;
   late TextEditingController _bloodGroupController;
   bool _isBloodDonor = false;
@@ -46,6 +50,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _phoneController = TextEditingController(text: widget.user.phone);
     _mandalController = TextEditingController(text: widget.user.mandal);
     _villageController = TextEditingController(text: widget.user.village);
+    _stateController = TextEditingController(text: widget.user.state);
+    _districtController = TextEditingController(text: widget.user.district);
     _ageController = TextEditingController(text: widget.user.age);
     _bloodGroupController = TextEditingController(text: widget.user.bloodGroup);
     _isBloodDonor = widget.user.isBloodDonor;
@@ -57,6 +63,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _phoneController.dispose();
     _mandalController.dispose();
     _villageController.dispose();
+    _stateController.dispose();
+    _districtController.dispose();
     _ageController.dispose();
     _bloodGroupController.dispose();
     super.dispose();
@@ -243,6 +251,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _phoneController,
           ),
           _buildInfoRow(
+            Icons.public,
+            'State',
+            _currentUser?.state ?? '',
+            _stateController,
+          ),
+          _buildInfoRow(
+            Icons.map,
+            'District',
+            _currentUser?.district ?? '',
+            _districtController,
+          ),
+          _buildInfoRow(
             Icons.location_city,
             'Mandal',
             _currentUser?.mandal ?? '',
@@ -408,6 +428,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               val?.isEmpty ?? true ? 'Required' : null,
                           textInputAction: TextInputAction.next,
                         )
+                      : label == 'District'
+                          ? DistrictAutocomplete(
+                              controller: controller,
+                              labelText: null,
+                              hintText: 'Search district...',
+                              prefixIcon: null,
+                              validator: (val) =>
+                                  val?.isEmpty ?? true ? 'Required' : null,
+                              textInputAction: TextInputAction.next,
+                            )
                       : TextField(
                           controller: controller,
                           style: const TextStyle(
@@ -628,6 +658,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _isEditing = true;
       _nameController.text = _currentUser?.name ?? '';
       _phoneController.text = _currentUser?.phone ?? '';
+      _stateController.text = _currentUser?.state ?? '';
+      _districtController.text = _currentUser?.district ?? '';
       _mandalController.text = _currentUser?.mandal ?? '';
       _villageController.text = _currentUser?.village ?? '';
       _ageController.text = _currentUser?.age ?? '';
@@ -647,6 +679,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final updatedUser = widget.user.copyWith(
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
+        state: _stateController.text.trim(),
+        district: _districtController.text.trim(),
         mandal: _mandalController.text.trim().toLowerCase(),
         village: _villageController.text.trim(),
         age: _ageController.text.trim(),

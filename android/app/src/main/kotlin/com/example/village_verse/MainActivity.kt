@@ -63,25 +63,29 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        stealthSosMethodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, stealthSosTriggerChannel)
-        stealthSosMethodChannel?.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "startPowerButtonWatcher" -> {
-                    val intent = Intent(this, PowerButtonSosService::class.java)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
+        // Stealth SOS trigger Channel — used by [StealthSOSTriggerService] to
+        // start / stop the native power-button watcher foreground service.
+        // The actual SOS escalation happens entirely on the native side
+        // via [StealthSosManager], which works without a Flutter engine.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, stealthSosTriggerChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "startPowerButtonWatcher" -> {
+                        val intent = Intent(this, PowerButtonSosService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success(true)
                     }
-                    result.success(true)
+                    "stopPowerButtonWatcher" -> {
+                        stopService(Intent(this, PowerButtonSosService::class.java))
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
                 }
-                "stopPowerButtonWatcher" -> {
-                    stopService(Intent(this, PowerButtonSosService::class.java))
-                    result.success(true)
-                }
-                else -> result.notImplemented()
             }
-        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, smsChannel).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -326,7 +330,8 @@ class MainActivity : FlutterActivity() {
         stopEmergencyVoicePlayback()
         emergencyTextToSpeech?.shutdown()
         emergencyTextToSpeech = null
-        stealthSosMethodChannel = null
+        // StealthSosManager lifecycle is independent of the Activity.
+        // No cleanup needed here.
         super.onDestroy()
     }
 
@@ -378,14 +383,10 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    companion object {
-        private var stealthSosMethodChannel: MethodChannel? = null
-        private val mainHandler = Handler(Looper.getMainLooper())
-
-        fun triggerStealthSosFromPowerButton() {
-            mainHandler.post {
-                stealthSosMethodChannel?.invokeMethod("activateStealthSOS", null)
-            }
-        }
-    }
+    // Companion object has been removed.
+    // The legacy [triggerStealthSosFromPowerButton] relied on a static
+    // MethodChannel that was null whenever the Activity was destroyed
+    // or never created (reboot). All SOS escalation is now handled by
+    // the native [StealthSosManager], which operates independently of
+    // the Flutter engine lifecycle.
 }

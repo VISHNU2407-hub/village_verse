@@ -99,6 +99,8 @@ class AppStrings {
   static const String completeProfile = 'Complete your profile to continue';
   static const String fullName = 'Full Name';
   static const String phoneNumber = 'Phone Number';
+  static const String state = 'State';
+  static const String district = 'District';
   static const String mandal = 'Mandal';
   static const String village = 'Village';
   static const String profilePicture = 'Profile Picture';

@@ -4,6 +4,8 @@ class UserModel {
   final String uid;
   final String name;
   final String phone;
+  final String state;
+  final String district;
   final String mandal;
   final String village;
   final String photoUrl;
@@ -19,6 +21,8 @@ class UserModel {
     required this.uid,
     required this.name,
     required this.phone,
+    this.state = '',
+    this.district = '',
     required this.mandal,
     required this.village,
     required this.photoUrl,
@@ -38,6 +42,8 @@ class UserModel {
       uid: uid,
       name: data['name'] ?? '',
       phone: data['phone'] ?? '',
+      state: data['state'] ?? '',
+      district: data['district'] ?? '',
       mandal: data['village'] ?? '', // Maps Firestore 'village' to 'mandal'
       village: data['street'] ?? '', // Maps Firestore 'street' to 'village'
       photoUrl: data['photoUrl'] ?? '',
@@ -57,6 +63,7 @@ class UserModel {
     return {
       'name': name,
       'phone': phone,
+      'district': district,
       'village': mandal, // Maps 'mandal' to Firestore 'village'
       'street': village, // Maps 'village' to Firestore 'street'
       'photoUrl': photoUrl,
@@ -67,6 +74,7 @@ class UserModel {
       'createdAt': Timestamp.fromDate(createdAt),
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
+      'state': state,
     };
   }
 
@@ -74,6 +82,8 @@ class UserModel {
   UserModel copyWith({
     String? name,
     String? phone,
+    String? state,
+    String? district,
     String? mandal,
     String? village,
     String? photoUrl,
@@ -88,6 +98,8 @@ class UserModel {
       uid: uid,
       name: name ?? this.name,
       phone: phone ?? this.phone,
+      state: state ?? this.state,
+      district: district ?? this.district,
       mandal: mandal ?? this.mandal,
       village: village ?? this.village,
       photoUrl: photoUrl ?? this.photoUrl,
@@ -112,6 +124,6 @@ class UserModel {
 
   @override
   String toString() {
-    return 'UserModel(uid: $uid, name: $name, phone: $phone, mandal: $mandal, village: $village, photoUrl: $photoUrl, age: $age, bloodGroup: $bloodGroup, role: $role, isBloodDonor: $isBloodDonor, createdAt: $createdAt)';
+    return 'UserModel(uid: $uid, name: $name, phone: $phone, state: $state, district: $district, mandal: $mandal, village: $village, photoUrl: $photoUrl, age: $age, bloodGroup: $bloodGroup, role: $role, isBloodDonor: $isBloodDonor, createdAt: $createdAt)';
   }
 }

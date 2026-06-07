@@ -6,10 +6,13 @@ import 'dart:io';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../../services/cloudinary_service.dart';
+
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/mandal_autocomplete.dart';
+import '../../widgets/district_autocomplete.dart';
+
 
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
@@ -29,14 +32,27 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _phoneController = TextEditingController();
   final _mandalController = TextEditingController();
   final _villageController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _districtController = TextEditingController();
   final _ageController = TextEditingController();
   String _selectedBloodGroup = '';
-  String _selectedRole = 'citizen';
+  String _selectedRole = '';
   bool _isBloodDonor = false;
+  bool _phoneFromAuth = false;
 
   bool _isLoading = false;
   bool _isUploadingImage = false;
   File? _selectedImage;
+  @override
+  void initState() {
+    super.initState();
+    // Pre-populate phone from Firebase Auth if available
+    final user = _auth.currentUser;
+    if (user != null && user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
+      _phoneController.text = user.phoneNumber!;
+      _phoneFromAuth = true;
+    }
+  }
 
   @override
   void dispose() {
@@ -44,8 +60,82 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     _phoneController.dispose();
     _mandalController.dispose();
     _villageController.dispose();
+    _stateController.dispose();
+    _districtController.dispose();
     _ageController.dispose();
     super.dispose();
+  }
+
+  Widget _buildVerifiedPhoneDisplay() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 14,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.phone, color: AppConstants.primaryColor),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.phoneNumber,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _phoneController.text,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: AppConstants.primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle,
+                  size: 14,
+                  color: Colors.green,
+                ),
+                SizedBox(width: 4),
+                Text(
+                  'Verified',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.green,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickImage() async {
@@ -106,6 +196,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         uid: currentUser.uid,
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
+        state: _stateController.text.trim(),
+        district: _districtController.text.trim(),
         mandal: _mandalController.text.trim().toLowerCase(),
         village: _villageController.text.trim(),
         photoUrl: photoUrl,
@@ -253,21 +345,50 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 const SizedBox(height: 16),
 
                 // Phone Field
+                _phoneFromAuth
+                    ? _buildVerifiedPhoneDisplay()
+                    : TextFormField(
+                        controller: _phoneController,
+                        decoration: InputDecoration(
+                          labelText: AppStrings.phoneNumber,
+                          prefixIcon: const Icon(Icons.phone),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(10),
+                        ],
+                        validator: validatePhone,
+                        textInputAction: TextInputAction.next,
+                      ),
+
+                const SizedBox(height: 16),
+
+                // State Field
                 TextFormField(
-                  controller: _phoneController,
+                  controller: _stateController,
                   decoration: InputDecoration(
-                    labelText: AppStrings.phoneNumber,
-                    prefixIcon: const Icon(Icons.phone),
+                    labelText: AppStrings.state,
+                    prefixIcon: const Icon(Icons.public),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(10),
-                  ],
-                  validator: validatePhone,
+                  validator: (value) => validateRequired(value, 'State'),
+                  textInputAction: TextInputAction.next,
+                ),
+
+                const SizedBox(height: 16),
+
+                // District Field
+                DistrictAutocomplete(
+                  controller: _districtController,
+                  labelText: AppStrings.district,
+                  prefixIcon: Icons.map,
+                  validator: (value) => validateRequired(value, 'District'),
                   textInputAction: TextInputAction.next,
                 ),
 
@@ -431,7 +552,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
                 // Role Field
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedRole,
+                  initialValue: _selectedRole.isNotEmpty ? _selectedRole : null,
                   decoration: InputDecoration(
                     labelText: 'Role',
                     prefixIcon: const Icon(Icons.person_outline),
@@ -451,7 +572,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   ],
                   onChanged: (String? newValue) {
                     setState(() {
-                      _selectedRole = newValue ?? 'citizen';
+                      _selectedRole = newValue ?? '';
                     });
                   },
                   validator: (value) => validateRequired(value, 'Role'),

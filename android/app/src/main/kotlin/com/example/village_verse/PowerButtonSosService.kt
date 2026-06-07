@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class PowerButtonSosService : Service() {
@@ -41,6 +42,9 @@ class PowerButtonSosService : Service() {
     }
 
     override fun onDestroy() {
+        Log.i(TAG, "Service shutting down -- stopping location tracking")
+        StealthSosManager.stopPeriodicLocationUpdates()
+
         if (isReceiverRegistered) {
             unregisterReceiver(screenReceiver)
             isReceiverRegistered = false
@@ -91,7 +95,8 @@ class PowerButtonSosService : Service() {
             pressTimestamps.clear()
             lastTriggerAt = now
             vibrateBriefly()
-            MainActivity.triggerStealthSosFromPowerButton()
+            Log.i(TAG, "Power button trigger threshold reached — invoking StealthSosManager")
+            StealthSosManager.triggerStealthSos(this)
         }
     }
 
@@ -140,5 +145,6 @@ class PowerButtonSosService : Service() {
         private const val minPressGapMillis = 120L
         private const val maxPressGapMillis = 1600L
         private const val triggerCooldownMillis = 30000L
+        private const val TAG = "PowerButtonSosService"
     }
 }
