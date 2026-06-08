@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/guardian_model.dart';
+import '../models/notification_model.dart';
 import '../models/user_model.dart';
 import 'call_service.dart';
 import 'firestore_service.dart';
@@ -133,6 +134,13 @@ class SOSService {
       _currentEmergencyId = emergencyId;
       _isEmergencyActive = true;
 
+      // Create Firestore notification documents for guardians' Notification Center
+      await _createSOSNotifications(
+        userName: user.name,
+        emergencyId: emergencyId,
+        guardians: guardians,
+      );
+
       // Send SMS to all guardians
       final phoneNumbers = guardians.map((g) => g.phone).toList();
       final smsResults = await _smsService.sendEmergencySMSToMultiple(
@@ -165,6 +173,53 @@ class SOSService {
     } catch (e) {
       print('Error activating SOS: $e');
       return SOSActivationResult(success: false, error: e.toString());
+    }
+  }
+
+  /// Creates Firestore notification documents for each guardian
+  /// when an SOS alert is activated.
+  Future<void> _createSOSNotifications({
+    required String userName,
+    required String emergencyId,
+    required List<GuardianModel> guardians,
+  }) async {
+    if (guardians.isEmpty) return;
+
+    // Normalize guardian phone numbers for lookup
+    final normalizedPhones = guardians
+        .map((g) => GuardianAlertService.normalizePhone(g.phone))
+        .where((p) => p.isNotEmpty)
+        .toList();
+
+    if (normalizedPhones.isEmpty) return;
+
+    try {
+      // Query users by normalized phone numbers to find guardian user IDs
+      final usersSnapshot = await _firestore
+          .collection('users')
+          .where('phoneNormalized', whereIn: normalizedPhones)
+          .get();
+
+      if (usersSnapshot.docs.isEmpty) return;
+
+      for (final userDoc in usersSnapshot.docs) {
+        final guardianUserId = userDoc.id;
+        final notification = NotificationModel(
+          id: '', // Firestore .add() will assign the document ID
+          title: '\u{1F6A8} SOS Activated',
+          body: '$userName triggered an emergency SOS alert.',
+          type: 'sos',
+          createdAt: DateTime.now(),
+          isRead: false,
+          targetMandal: '',
+          targetUserId: guardianUserId,
+          relatedDocumentId: emergencyId,
+        );
+        await _firestoreService.createNotification(notification);
+      }
+    } catch (e) {
+      // Log but do not fail SOS activation if notification creation fails
+      print('Error creating SOS notifications: $e');
     }
   }
 

@@ -330,10 +330,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   // Complaints List
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: _firestoreService.getComplaintsByVillageAndMandal(
-                        _currentUser!.village,
-                        _currentUser!.mandal,
-                      ),
+                      stream:
+                          _firestoreService.getComplaintsByVillageAndMandal(
+                            _currentUser!.village,
+                            _currentUser!.mandal,
+                          ),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -404,7 +405,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   _searchQuery.isNotEmpty ||
                                           _statusFilter != 'All'
                                       ? 'No matching complaints found'
-                                      : 'No complaints available',
+                                      : 'No complaints in your area',
                                   style: TextStyle(
                                     fontSize: 18,
                                     color: Colors.grey[600],
@@ -416,7 +417,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   _searchQuery.isNotEmpty ||
                                           _statusFilter != 'All'
                                       ? 'Try adjusting your search or filters'
-                                      : 'Complaints from your village and mandal will appear here',
+                                      : 'Complaints from your village will appear here',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.grey[500],

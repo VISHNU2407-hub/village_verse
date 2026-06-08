@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../services/firestore_service.dart';
 import '../../services/cloudinary_service.dart';
+import '../../models/notification_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
@@ -155,7 +156,51 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
         'updatedAt': DateTime.now(),
       };
 
-      await _firestoreService.submitComplaint(complaint);
+      final complaintId = await _firestoreService.submitComplaint(complaint);
+
+      // Create notification for the complaint creator
+      try {
+        final notification = NotificationModel(
+          id: '',
+          title: '📝 Complaint Submitted',
+          body: 'Your complaint has been submitted and is under review.',
+          type: 'complaint',
+          createdAt: DateTime.now(),
+          isRead: false,
+          targetMandal: _currentUser?.mandal ?? '',
+          targetUserId: currentUser.uid,
+          relatedDocumentId: complaintId,
+        );
+        await _firestoreService.createNotification(notification);
+      } catch (notificationError) {
+        // Log but do not fail complaint submission if notification fails
+        print('Error creating complaint notification: $notificationError');
+      }
+
+      // Notify all admins in the same village and mandal
+      try {
+        final admins = await _firestoreService.getAdminUsersByVillageAndMandal(
+          _currentUser?.village ?? '',
+          _currentUser?.mandal ?? '',
+        );
+        for (final admin in admins) {
+          final adminNotification = NotificationModel(
+            id: '',
+            title: '🚨 New Complaint Received',
+            body: 'A new complaint has been submitted in your village.',
+            type: 'complaint',
+            createdAt: DateTime.now(),
+            isRead: false,
+            targetMandal: _currentUser?.mandal ?? '',
+            targetUserId: admin.uid,
+            relatedDocumentId: complaintId,
+          );
+          await _firestoreService.createNotification(adminNotification);
+        }
+      } catch (notificationError) {
+        // Log but do not fail complaint submission if notification fails
+        print('Error creating admin notification: $notificationError');
+      }
 
       if (mounted) {
         AppHelpers.showSuccessSnackBar(context, AppStrings.complaintSubmitted);

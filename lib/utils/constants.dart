@@ -43,13 +43,6 @@ class AppConstants {
       'color': Color(0xFFD32F2F),
       'description': 'Find emergency blood donors nearby',
     },
-    {
-      'type': 'emergency_contacts',
-      'title': 'EMERGENCY CONTACTS',
-      'icon': Icons.contacts,
-      'color': Color(0xFF4CAF50),
-      'description': 'Quick Access to Saved Contacts',
-    },
   ];
 
   // Emergency numbers
@@ -113,7 +106,6 @@ class AppStrings {
   static const String addGuardian = 'Add Guardian';
   static const String guardianName = 'Guardian Name';
   static const String relation = 'Relation';
-  static const String emergencyContacts = 'Emergency Contacts';
 
   // Validation messages
   static const String nameRequired = 'Name is required';

@@ -199,7 +199,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         state: _stateController.text.trim(),
         district: _districtController.text.trim(),
         mandal: _mandalController.text.trim().toLowerCase(),
-        village: _villageController.text.trim(),
+        village: _villageController.text.trim().toLowerCase(),
         photoUrl: photoUrl,
         age: _ageController.text.trim(),
         bloodGroup: _selectedBloodGroup,

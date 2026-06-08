@@ -21,6 +21,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   await GuardianAlertService.instance.initialize();
   await StealthSOSTriggerService.instance.initialize();
 

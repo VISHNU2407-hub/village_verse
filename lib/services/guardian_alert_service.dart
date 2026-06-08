@@ -3,10 +3,20 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import '../models/guardian_model.dart';
 
+/// Manages guardian-specific emergency detection.
+///
+/// Previously this service listened for active emergencies in Firestore
+/// and launched [EmergencyAlertActivity] (full-screen red alert with
+/// siren). That disruptive behavior has been removed.
+///
+/// The service now only writes the current user's normalized phone number
+/// to their Firestore document on startup, which is needed by the
+/// [StealthSosManager] and SOS Cloud Function for guardian-to-user
+/// lookups. All other notification channels (SMS, FCM push, phone
+/// calls, live location, Notification Center) remain intact.
 class GuardianAlertService {
   GuardianAlertService._();
 
@@ -14,50 +24,32 @@ class GuardianAlertService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final MethodChannel _emergencyAlertChannel = const MethodChannel(
-    'village_verse/emergency_alert',
-  );
 
   StreamSubscription<User?>? _authSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
-  _emergencySubscription;
-  final Set<String> _alertedEmergencyIds = <String>{};
 
   Future<void> initialize() async {
     _authSubscription ??= _auth.authStateChanges().listen(
-      (user) => unawaited(_startListeningForUser(user)),
+      (user) => unawaited(_ensurePhoneNormalized(user)),
     );
-    await _startListeningForUser(_auth.currentUser);
+    await _ensurePhoneNormalized(_auth.currentUser);
   }
 
-  Future<void> _startListeningForUser(User? user) async {
-    await _emergencySubscription?.cancel();
-    _emergencySubscription = null;
-    _alertedEmergencyIds.clear();
-
-    if (user == null) {
-      return;
-    }
+  /// Ensures the current user's Firestore document contains a
+  /// normalized phone number so that the SOS Cloud Function and
+  /// [StealthSosManager] can look up guardian device tokens.
+  Future<void> _ensurePhoneNormalized(User? user) async {
+    if (user == null) return;
 
     try {
       final phone = await _currentUserPhone(user);
       final phoneNormalized = normalizePhone(phone);
-      if (phoneNormalized.isEmpty) {
-        return;
-      }
+      if (phoneNormalized.isEmpty) return;
 
       await _firestore.collection('users').doc(user.uid).set({
         'phoneNormalized': phoneNormalized,
       }, SetOptions(merge: true));
-
-      _emergencySubscription = _firestore
-          .collection('emergencies')
-          .where('status', isEqualTo: 'active')
-          .where('guardianPhonesNormalized', arrayContains: phoneNormalized)
-          .snapshots()
-          .listen(_handleEmergencySnapshot, onError: _handleListenError);
     } catch (e) {
-      debugPrint('Error starting guardian emergency listener: $e');
+      debugPrint('Error writing normalized phone: $e');
     }
   }
 
@@ -65,56 +57,6 @@ class GuardianAlertService {
     final userDoc = await _firestore.collection('users').doc(user.uid).get();
     final data = userDoc.data();
     return (data?['phone'] as String?) ?? user.phoneNumber ?? '';
-  }
-
-  void _handleEmergencySnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
-    for (final change in snapshot.docChanges) {
-      final emergencyId = change.doc.id;
-      if (change.type == DocumentChangeType.removed) {
-        _alertedEmergencyIds.remove(emergencyId);
-        continue;
-      }
-
-      if (!_alertedEmergencyIds.add(emergencyId)) {
-        continue;
-      }
-
-      final data = change.doc.data();
-      if (data != null) {
-        unawaited(_showLocalEmergencyAlert(emergencyId, data));
-      }
-    }
-  }
-
-  void _handleListenError(Object error) {
-    debugPrint('Guardian emergency listener error: $error');
-  }
-
-  Future<void> _showLocalEmergencyAlert(
-    String emergencyId,
-    Map<String, dynamic> data,
-  ) async {
-    try {
-      await _emergencyAlertChannel.invokeMethod('showEmergencyAlert', {
-        'emergencyId': emergencyId,
-        'victimUserId': data['userId'] ?? '',
-        'victimName': data['userName'] ?? 'Emergency contact',
-        'victimPhone': data['userPhone'] ?? '',
-        'locationLink': data['locationLink'] ?? '',
-        'latitude': data['latitude']?.toString() ?? '',
-        'longitude': data['longitude']?.toString() ?? '',
-        'startedAtMillis': _startedAtMillis(data['timestamp']),
-      });
-    } catch (e) {
-      debugPrint('Error showing local guardian emergency alert: $e');
-    }
-  }
-
-  int _startedAtMillis(Object? timestamp) {
-    if (timestamp is Timestamp) {
-      return timestamp.toDate().millisecondsSinceEpoch;
-    }
-    return DateTime.now().millisecondsSinceEpoch;
   }
 
   Map<String, dynamic> buildEmergencyTargetFields(
@@ -140,8 +82,5 @@ class GuardianAlertService {
   Future<void> dispose() async {
     await _authSubscription?.cancel();
     _authSubscription = null;
-    await _emergencySubscription?.cancel();
-    _emergencySubscription = null;
-    _alertedEmergencyIds.clear();
   }
 }

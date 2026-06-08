@@ -682,7 +682,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         state: _stateController.text.trim(),
         district: _districtController.text.trim(),
         mandal: _mandalController.text.trim().toLowerCase(),
-        village: _villageController.text.trim(),
+        village: _villageController.text.trim().toLowerCase(),
         age: _ageController.text.trim(),
         bloodGroup: _bloodGroupController.text.trim(),
         photoUrl: _currentUser?.photoUrl, // Preserve current photoUrl

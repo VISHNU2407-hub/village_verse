@@ -126,11 +126,12 @@ class PowerButtonSosService : Service() {
 
         return NotificationCompat.Builder(this, notificationChannelId)
             .setSmallIcon(applicationInfo.icon)
-            .setContentTitle("Safety trigger active")
-            .setContentText("Emergency hardware trigger is ready")
+            .setContentTitle("Village Verse Protection")
+            .setContentText("Safety monitoring active")
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
             .setSilent(true)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .build()
     }
 

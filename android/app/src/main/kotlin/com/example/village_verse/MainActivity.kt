@@ -26,7 +26,6 @@ class MainActivity : FlutterActivity() {
     private val smsChannel = "village_verse/sms"
     private val callChannel = "village_verse/call"
     private val contactPickerChannel = "village_verse/contact_picker"
-    private val emergencyAlertChannel = "village_verse/emergency_alert"
     private val stealthSosTriggerChannel = "village_verse/stealth_sos_trigger"
     private val deviceSettingsChannel = "village_verse/device_settings"
     private val pickPhoneContactRequestCode = 4101
@@ -207,30 +206,6 @@ class MainActivity : FlutterActivity() {
                 "stopEmergencyVoicePlayback" -> {
                     stopEmergencyVoicePlayback()
                     result.success(null)
-                }
-                else -> result.notImplemented()
-            }
-        }
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, emergencyAlertChannel).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "showEmergencyAlert" -> {
-                    val data = (call.arguments as? Map<*, *>)
-                        ?.mapNotNull { (key, value) ->
-                            val stringKey = key as? String ?: return@mapNotNull null
-                            stringKey to value.toString()
-                        }
-                        ?.toMap()
-                        ?: emptyMap()
-
-                    val intent = Intent(this, EmergencyAlertActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                            Intent.FLAG_ACTIVITY_SINGLE_TOP
-                        putExtras(EmergencyAlertActivity.extrasFrom(data))
-                    }
-                    startActivity(intent)
-                    result.success(true)
                 }
                 else -> result.notImplemented()
             }

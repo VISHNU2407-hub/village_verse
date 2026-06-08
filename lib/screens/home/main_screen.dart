@@ -10,7 +10,6 @@ import '../../utils/helpers.dart';
 import '../../widgets/profile_image_widget.dart';
 import '../profile/profile_screen.dart';
 import '../medical_emergency_screen.dart';
-import 'emergency_contacts_screen.dart';
 import 'complaint_screen.dart';
 import 'complaint_detail_screen.dart';
 import 'admin_dashboard_screen.dart';
@@ -455,12 +454,6 @@ class _MainScreenState extends State<MainScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const MissingPersonAlertsScreen()),
-        );
-        break;
-      case 'emergency_contacts':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const EmergencyContactsScreen()),
         );
         break;
       default:

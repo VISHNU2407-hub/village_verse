@@ -35,6 +35,12 @@ class FirestoreService {
         .update(user.toFirestore());
   }
 
+  /// Updates specific fields on the user document without
+  /// overwriting the entire document (e.g. FCM token, location).
+  Future<void> updateUserData(String uid, Map<String, dynamic> data) async {
+    await _firestore.collection('users').doc(uid).update(data);
+  }
+
   Future<void> updateUserLocation(
     String uid,
     double latitude,
@@ -103,8 +109,9 @@ class FirestoreService {
   }
 
   // Complaint operations
-  Future<void> submitComplaint(Map<String, dynamic> complaint) async {
-    await _firestore.collection('complaints').add(complaint);
+  Future<String> submitComplaint(Map<String, dynamic> complaint) async {
+    final docRef = await _firestore.collection('complaints').add(complaint);
+    return docRef.id;
   }
 
   // Get complaints by user ID (realtime stream)
@@ -116,7 +123,17 @@ class FirestoreService {
         .snapshots();
   }
 
-  // Get complaints by village and mandal for admins (realtime stream)
+  // Get complaints by mandal for admins (realtime stream)
+  Stream<QuerySnapshot> getComplaintsByMandal(String mandal) {
+    return _firestore
+        .collection('complaints')
+        .where('userMandal', isEqualTo: mandal)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  // Get complaints by village AND mandal for admins (realtime stream)
+  // Both village and mandal must match — enforces village-level sachivalayam routing.
   Stream<QuerySnapshot> getComplaintsByVillageAndMandal(
     String village,
     String mandal,
@@ -193,22 +210,6 @@ class FirestoreService {
     await _firestore.collection('complaints').doc(complaintId).delete();
   }
 
-  // Emergency contacts operations
-  Future<Map<String, dynamic>?> getEmergencyContacts(String mandal) async {
-    // Convert mandal to lowercase for Firestore lookup
-    final mandalLower = mandal.toLowerCase();
-
-    DocumentSnapshot doc = await _firestore
-        .collection('emergency_contacts')
-        .doc(mandalLower)
-        .get();
-
-    if (doc.exists) {
-      return doc.data() as Map<String, dynamic>;
-    }
-    return null;
-  }
-
   // Post operations
   Future<void> createPost(PostModel post) async {
     print('DEBUG: createPost - Creating post with ID: ${post.postId}');
@@ -222,10 +223,64 @@ class FirestoreService {
           .doc(post.postId)
           .set(post.toFirestore());
       print('DEBUG: createPost - Successfully saved post to Firestore');
+
+      // Create in-app notifications for all users sharing the same
+      // village (street) + mandal (village), excluding the post creator.
+      try {
+        await _createCommunityPostNotifications(post);
+      } catch (notificationError) {
+        // Log but never fail post creation due to notification errors.
+        print(
+          'DEBUG: createPost - Error creating community notifications: $notificationError',
+        );
+      }
     } catch (e) {
       print('DEBUG: createPost - Error saving post: $e');
       rethrow;
     }
+  }
+
+  /// Creates a [NotificationModel] document for every user whose village
+  /// and mandal match [post.userVillage] and [post.userMandal], excluding
+  /// the post author ([post.userId]).
+  ///
+  /// Firestore field mapping (UserModel legacy):
+  ///   - Firestore 'street' stores the village name (UserModel.village)
+  ///   - Firestore 'village' stores the mandal name (UserModel.mandal)
+  Future<void> _createCommunityPostNotifications(PostModel post) async {
+    final usersSnapshot = await _firestore
+        .collection('users')
+        .where('street', isEqualTo: post.userVillage)
+        .where('village', isEqualTo: post.userMandal)
+        .get();
+
+    if (usersSnapshot.docs.isEmpty) return;
+
+    final batch = _firestore.batch();
+
+    for (final userDoc in usersSnapshot.docs) {
+      final targetUserId = userDoc.id;
+      // Don't notify the post creator.
+      if (targetUserId == post.userId) continue;
+
+      final notificationDocId = 'community_${post.postId}_$targetUserId';
+      final notificationRef = _firestore
+          .collection('notifications')
+          .doc(notificationDocId);
+
+      batch.set(notificationRef, {
+        'title': '\u{1F4E2} New Community Post',
+        'body': '${post.userName} posted: ${post.title}',
+        'type': 'community_post',
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'targetMandal': post.userMandal,
+        'targetUserId': targetUserId,
+        'relatedDocumentId': post.postId,
+      });
+    }
+
+    await batch.commit();
   }
 
   Stream<QuerySnapshot> getPostsByVillage(String village) {
@@ -461,6 +516,42 @@ class FirestoreService {
         .update(announcement.toFirestore());
   }
 
+  /// Finds admin users whose village and mandal match the given values.
+  /// Used to notify admins when a complaint is submitted in their area.
+  ///
+  /// Firestore field mapping (UserModel legacy):
+  ///   - Firestore 'village' stores the mandal name (UserModel.mandal)
+  ///   - Firestore 'street' stores the village name (UserModel.village)
+  ///
+  /// We filter by role='admin' server-side, then match village+mandal client-side
+  /// to avoid requiring a 3-field composite index.
+  Future<List<UserModel>> getAdminUsersByVillageAndMandal(
+    String village,
+    String mandal,
+  ) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'admin')
+        .get();
+
+    final matchingAdmins = <UserModel>[];
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final adminVillage =
+          (data['street'] as String?)?.trim().toLowerCase() ?? '';
+      final adminMandal =
+          (data['village'] as String?)?.trim().toLowerCase() ?? '';
+
+      if (adminVillage == village.trim().toLowerCase() &&
+          adminMandal == mandal.trim().toLowerCase()) {
+        matchingAdmins.add(
+          UserModel.fromFirestore(data, doc.id),
+        );
+      }
+    }
+    return matchingAdmins;
+  }
+
   // Blood donor operations
   Stream<QuerySnapshot> getBloodDonors(
     String bloodGroup,
@@ -477,13 +568,34 @@ class FirestoreService {
         .snapshots();
   }
 
-  // Notification operations
+  // ──────────────────────────────────────────────────────────────────────────
+  //  NOTIFICATION OPERATIONS
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /// Creates a new notification document in the `notifications` collection.
   Future<void> createNotification(NotificationModel notification) async {
     await _firestore
         .collection('notifications')
         .add(notification.toFirestore());
   }
 
+  /// Returns a real-time stream of notifications relevant to [userId] or
+  /// [userMandal].
+  ///
+  /// Filtering logic (applied client-side after fetching all notifications
+  /// ordered by creation time):
+  ///   1. If the notification has a non-empty [targetUserId], it is shown
+  ///      only to that specific user.
+  ///   2. Otherwise, if [targetMandal] is set, it is shown to all users
+  ///      in that mandal.
+  ///   3. If neither is set (empty targetMandal), the notification is
+  ///      considered global and shown to everyone.
+  ///
+  /// ⚠️ This currently fetches the **entire** notifications collection and
+  ///    filters client-side. For larger collections, restructure the data
+  ///    model (e.g. per-user subcollections or a `targets` array with
+  ///    `arrayContains`) to enable server-side filtering and avoid Firestore
+  ///    read quota pressure.
   Stream<List<NotificationModel>> getNotificationsForUser({
     required String userId,
     required String userMandal,
@@ -520,6 +632,8 @@ class FirestoreService {
         });
   }
 
+  /// Returns a real-time stream of the unread notification count for
+  /// the given [userId] / [userMandal].
   Stream<int> getUnreadNotificationCount({
     required String userId,
     required String userMandal,
@@ -529,9 +643,93 @@ class FirestoreService {
     );
   }
 
+  /// Marks a single notification as read.
   Future<void> markNotificationAsRead(String notificationId) async {
     await _firestore.collection('notifications').doc(notificationId).update({
       'isRead': true,
     });
+  }
+
+  /// Deletes a single notification document by its Firestore document ID.
+  Future<void> deleteNotification(String notificationId) async {
+    await _firestore.collection('notifications').doc(notificationId).delete();
+  }
+
+  /// Fetches all notification docs relevant to [userId] / [userMandal]
+  /// (same filter logic as [getNotificationsForUser]) then marks every
+  /// unread one as read using a Firestore batch write.
+  ///
+  /// Returns the number of notifications that were marked as read.
+  Future<int> markAllNotificationsAsRead({
+    required String userId,
+    required String userMandal,
+  }) async {
+    final snapshot = await _firestore
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    final docs = snapshot.docs.where((doc) {
+      final data = doc.data();
+      final targetUserId = (data['targetUserId'] as String?)?.trim() ?? '';
+      final targetMandal = (data['targetMandal'] as String?)?.trim() ?? '';
+      final normalizedUserMandal = userMandal.trim();
+      final isRead = data['isRead'] == true;
+
+      // Skip already-read notifications.
+      if (isRead) return false;
+
+      // Apply same filter as getNotificationsForUser.
+      if (targetUserId.isNotEmpty) return targetUserId == userId;
+      if (targetMandal.isEmpty) return true;
+      return targetMandal.toLowerCase() == normalizedUserMandal.toLowerCase();
+    }).toList();
+
+    if (docs.isEmpty) return 0;
+
+    final batch = _firestore.batch();
+    for (final doc in docs) {
+      batch.update(doc.reference, {'isRead': true});
+    }
+    await batch.commit();
+
+    return docs.length;
+  }
+
+  /// Fetches all notification docs relevant to [userId] / [userMandal]
+  /// (same filter logic as [getNotificationsForUser]) then deletes them
+  /// all using a Firestore batch write.
+  ///
+  /// Returns the number of notifications that were deleted.
+  Future<int> deleteAllNotifications({
+    required String userId,
+    required String userMandal,
+  }) async {
+    final snapshot = await _firestore
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    final docs = snapshot.docs.where((doc) {
+      final data = doc.data();
+      final targetUserId = (data['targetUserId'] as String?)?.trim() ?? '';
+      final targetMandal = (data['targetMandal'] as String?)?.trim() ?? '';
+      final normalizedUserMandal = userMandal.trim();
+
+      // Apply same filter as getNotificationsForUser.
+      if (targetUserId.isNotEmpty) return targetUserId == userId;
+      if (targetMandal.isEmpty) return true;
+      return targetMandal.toLowerCase() == normalizedUserMandal.toLowerCase();
+    }).toList();
+
+    if (docs.isEmpty) return 0;
+
+    final batch = _firestore.batch();
+    for (final doc in docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+
+    return docs.length;
   }
 }

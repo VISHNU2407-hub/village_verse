@@ -17,10 +17,12 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
   bool _isLoading = false;
   bool _hasPermission = false;
   String? _errorMessage;
-  String _selectedDistrict = 'anantapuramu';
   String _searchQuery = '';
   String _contactFilter = 'all'; // 'all', 'available', 'not_available'
   final TextEditingController _searchController = TextEditingController();
+
+  /// How many hospitals to show initially for performance.
+  int _initialDisplayCount = 100;
 
   @override
   void initState() {
@@ -69,21 +71,28 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
       return;
     }
 
-    final hospitals = await HospitalService.getNearestHospitals(
-      position.latitude,
-      position.longitude,
-      _selectedDistrict,
-    );
+    try {
+      final hospitals = await HospitalService.getNearestHospitals(
+        position.latitude,
+        position.longitude,
+      );
 
-    setState(() {
-      _isLoading = false;
-      _hasPermission = true;
-      _hospitals = hospitals;
-      _filteredHospitals = hospitals;
-      if (hospitals.isEmpty) {
-        _errorMessage = 'No hospitals found in $_selectedDistrict district.';
-      }
-    });
+      setState(() {
+        _isLoading = false;
+        _hasPermission = true;
+        _hospitals = hospitals;
+        _filteredHospitals = hospitals;
+        if (hospitals.isEmpty) {
+          _errorMessage = 'No hospitals found in your area.';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _hasPermission = true;
+        _errorMessage = 'Failed to load hospitals. Please try again.';
+      });
+    }
   }
 
   void _filterHospitals(String query) {
@@ -125,18 +134,6 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
     await _loadData();
   }
 
-  Future<void> _onDistrictChanged(String? district) async {
-    if (district != null && district != _selectedDistrict) {
-      setState(() {
-        _selectedDistrict = district;
-        _searchQuery = '';
-        _searchController.clear();
-        _contactFilter = 'all';
-      });
-      await _loadData();
-    }
-  }
-
   void _onContactFilterChanged(String filter) {
     setState(() {
       _contactFilter = filter;
@@ -173,7 +170,7 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
             CircularProgressIndicator(color: Colors.red),
             SizedBox(height: 16),
             Text(
-              'Finding nearest hospitals...',
+              'Loading hospitals near you...',
               style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
           ],
@@ -247,6 +244,10 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
   }
 
   Widget _buildLocationHeader() {
+    final total = _filteredHospitals.length;
+    final hasMore = total > _initialDisplayCount;
+    final displayCount = hasMore ? _initialDisplayCount : total;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -258,11 +259,15 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.local_hospital, color: Colors.red.shade700, size: 22),
+          Icon(Icons.near_me, color: Colors.red.shade700, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '${_filteredHospitals.length} Hospitals Found in ${_formatDistrictName(_selectedDistrict)}',
+              _searchQuery.isNotEmpty || _contactFilter != 'all'
+                  ? '$total hospitals found'
+                  : hasMore
+                      ? 'Nearest $displayCount+ hospitals near you'
+                      : '$displayCount hospitals near you',
               style: TextStyle(
                 fontSize: 15,
                 color: Colors.red.shade900,
@@ -289,56 +294,6 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
       color: Colors.white,
       child: Column(
         children: [
-          Row(
-            children: [
-              Icon(Icons.location_city, size: 18, color: Colors.grey.shade700),
-              const SizedBox(width: 8),
-              const Text(
-                'District',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedDistrict,
-                      isExpanded: true,
-                      iconSize: 18,
-                      itemHeight: 48,
-                      menuMaxHeight: 300,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black87,
-                      ),
-                      items: HospitalService.andhraPradeshDistricts
-                          .map(
-                            (district) => DropdownMenuItem<String>(
-                              value: district,
-                              child: Text(
-                                _formatDistrictName(district),
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _onDistrictChanged,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
           TextField(
             controller: _searchController,
             onChanged: _filterHospitals,
@@ -420,6 +375,10 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
   }
 
   Widget _buildHospitalList() {
+    final displayList = _filteredHospitals.take(_initialDisplayCount).toList();
+    final totalCount = _filteredHospitals.length;
+    final hasMore = totalCount > _initialDisplayCount;
+
     if (_filteredHospitals.isEmpty) {
       return Center(
         child: Padding(
@@ -432,7 +391,7 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
               Text(
                 _searchQuery.isNotEmpty
                     ? 'No hospitals found matching "$_searchQuery"'
-                    : 'No hospitals found in ${_formatDistrictName(_selectedDistrict)}',
+                    : 'No hospitals found in your area.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15, color: Colors.grey.shade700),
               ),
@@ -444,20 +403,35 @@ class _MedicalEmergencyScreenState extends State<MedicalEmergencyScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: _filteredHospitals.length,
+      itemCount: displayList.length + (hasMore ? 1 : 0),
       itemBuilder: (context, index) {
-        return HospitalCard(hospital: _filteredHospitals[index]);
+        if (index >= displayList.length) {
+          // Show more button
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: TextButton(
+                onPressed: () {
+                  // Expand to show all (or up to a larger limit)
+                  setState(() {
+                    // For simplicity, we remove the limit so all show
+                    // In a real app, consider incremental loading
+                    _initialDisplayCount = totalCount;
+                  });
+                },
+                child: Text(
+                  'Show all $totalCount hospitals',
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+        return HospitalCard(hospital: displayList[index]);
       },
     );
-  }
-
-  String _formatDistrictName(String district) {
-    return district
-        .split('_')
-        .map((word) {
-          if (word == 'ysr') return 'YSR';
-          return word[0].toUpperCase() + word.substring(1);
-        })
-        .join(' ');
   }
 }

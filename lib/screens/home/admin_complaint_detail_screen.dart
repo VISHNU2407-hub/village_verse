@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/complaint_model.dart';
+import '../../models/notification_model.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/constants.dart';
@@ -62,6 +63,51 @@ class _AdminComplaintDetailScreenState
         widget.complaint.complaintId,
         newStatus,
       );
+
+      // Create notification for the complaint creator
+      String title;
+      String body;
+      switch (newStatus) {
+        case 'reviewing':
+          title = '📋 Complaint Updated';
+          body = 'Your complaint is now under review.';
+          break;
+        case 'in_progress':
+          title = '🔧 Complaint In Progress';
+          body = 'Work has started on your complaint.';
+          break;
+        case 'resolved':
+          title = '✅ Complaint Resolved';
+          body = 'Your complaint has been marked as resolved.';
+          break;
+        case 'rejected':
+          title = '❌ Complaint Rejected';
+          body = 'Your complaint has been rejected.';
+          break;
+        default:
+          title = '📋 Complaint Updated';
+          body = 'Your complaint has been updated.';
+      }
+
+      // Create notification for the complaint creator
+      try {
+        final notification = NotificationModel(
+          id: '',
+          title: title,
+          body: body,
+          type: 'complaint',
+          createdAt: DateTime.now(),
+          isRead: false,
+          targetMandal: widget.complaint.userMandal,
+          targetUserId: widget.complaint.userId,
+          relatedDocumentId: widget.complaint.complaintId,
+        );
+        await _firestoreService.createNotification(notification);
+      } catch (notificationError) {
+        // Log but do not fail status update if notification fails
+        print('Error creating status-change notification: $notificationError');
+      }
+
       if (mounted) {
         AppHelpers.showSuccessSnackBar(
           context,
