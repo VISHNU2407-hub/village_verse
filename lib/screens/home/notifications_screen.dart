@@ -605,13 +605,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return (
           Icons.campaign_outlined,
           'No community posts',
-          'Community announcements and posts will appear here.',
+          'Community posts will appear here.',
         );
       case NotificationCategory.system:
         return (
           Icons.notifications_active_outlined,
           'No system notifications',
-          'System updates and announcements will appear here.',
+          'System updates will appear here.',
         );
     }
   }
@@ -876,6 +876,8 @@ class _NotificationCard extends StatelessWidget {
 
   String _categoryLabel(String type) {
     switch (type) {
+      case 'sos':
+        return 'SOS';
       case 'missing_person':
         return 'Alert';
       case 'complaint':
@@ -890,6 +892,8 @@ class _NotificationCard extends StatelessWidget {
 
   IconData _iconForType(String type) {
     switch (type) {
+      case 'sos':
+        return Icons.sos;
       case 'missing_person':
         return Icons.person_search;
       case 'complaint':
@@ -904,6 +908,8 @@ class _NotificationCard extends StatelessWidget {
 
   Color _colorForType(String type) {
     switch (type) {
+      case 'sos':
+        return Colors.redAccent;
       case 'missing_person':
         return Colors.orange;
       case 'complaint':

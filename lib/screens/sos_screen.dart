@@ -100,7 +100,9 @@ class _SOSScreenState extends State<SOSScreen> {
         _locationGranted = results['location'] ?? false;
       });
 
-      if (!results['sms']! || !results['phone']! || !results['location']!) {
+      if (!(results['sms'] ?? false) ||
+          !(results['phone'] ?? false) ||
+          !(results['location'] ?? false)) {
         _showPermissionDialog();
       }
     }
@@ -330,7 +332,7 @@ class _SOSScreenState extends State<SOSScreen> {
         elevation: 0,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
         title: const Text(
-          'Women & Child Safety',
+          'Emergency SOS',
           style: TextStyle(
             color: Color(0xFFE91E63),
             fontWeight: FontWeight.bold,

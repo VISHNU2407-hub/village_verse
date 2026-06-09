@@ -889,87 +889,87 @@ class _InfoScreenState extends State<InfoScreen> {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (value) async {
-                    switch (value) {
-                      case 'pin':
-                        _showPinDurationDialog(post.postId);
-                        break;
-                      case 'unpin':
-                        _unpinPost(post.postId);
-                        break;
-                      case 'edit':
-                        _showEditPostDialog(post);
-                        break;
-                      case 'delete':
-                        _showDeleteConfirmationDialog(post.postId);
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) {
-                    if (_selectedTab == 1) {
-                      // My Posts tab - show Edit and Delete for own posts
-                      return [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit, size: 20),
-                              SizedBox(width: 8),
-                              Text('Edit Post'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete, size: 20, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text(
-                                'Delete Post',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ];
-                    } else {
-                      // Community Posts tab - show Pin/Unpin for other users' posts only
-                      if (isOwnPost) {
-                        // Don't show any options for own posts in Community tab
-                        return [];
-                      } else if (isPinned) {
+                if (isOwnPost && _selectedTab == 0)
+                  const SizedBox(width: 48)
+                else
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (value) async {
+                      switch (value) {
+                        case 'pin':
+                          _showPinDurationDialog(post.postId);
+                          break;
+                        case 'unpin':
+                          _unpinPost(post.postId);
+                          break;
+                        case 'edit':
+                          _showEditPostDialog(post);
+                          break;
+                        case 'delete':
+                          _showDeleteConfirmationDialog(post.postId);
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) {
+                      if (_selectedTab == 1) {
+                        // My Posts tab - show Edit and Delete for own posts
                         return [
                           const PopupMenuItem(
-                            value: 'unpin',
+                            value: 'edit',
                             child: Row(
                               children: [
-                                Icon(Icons.push_pin, size: 20),
+                                Icon(Icons.edit, size: 20),
                                 SizedBox(width: 8),
-                                Text('Unpin Post'),
+                                Text('Edit Post'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete, size: 20, color: Colors.red),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Delete Post',
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ],
                             ),
                           ),
                         ];
                       } else {
-                        return [
-                          const PopupMenuItem(
-                            value: 'pin',
-                            child: Row(
-                              children: [
-                                Icon(Icons.push_pin, size: 20),
-                                SizedBox(width: 8),
-                                Text('Pin Post'),
-                              ],
+                        // Community Posts tab - show Pin/Unpin for other users' posts only
+                        if (isPinned) {
+                          return [
+                            const PopupMenuItem(
+                              value: 'unpin',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.push_pin, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Unpin Post'),
+                                ],
+                              ),
                             ),
-                          ),
-                        ];
+                          ];
+                        } else {
+                          return [
+                            const PopupMenuItem(
+                              value: 'pin',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.push_pin, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Pin Post'),
+                                ],
+                              ),
+                            ),
+                          ];
+                        }
                       }
-                    }
-                  },
-                ),
+                    },
+                  ),
               ],
             ),
             if (isPinned) ...[

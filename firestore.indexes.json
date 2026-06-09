@@ -1,16 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "phoneNormalized",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "complaints",
       "queryScope": "COLLECTION",
       "fields": [
@@ -34,6 +24,20 @@
         },
         {
           "fieldPath": "userMandal",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "targetUserId",
           "order": "ASCENDING"
         },
         {

@@ -52,6 +52,33 @@ class MissingPersonAlertService {
       'foundAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // Notify the alert creator that it was marked found safe
+    try {
+      final alertDoc = await _alerts.doc(alertId).get();
+      if (alertDoc.exists) {
+        final data = alertDoc.data()!;
+        final createdBy = data['createdBy'] as String?;
+        final fullName = data['fullName'] as String? ?? 'Person';
+        if (createdBy != null && createdBy.isNotEmpty) {
+          final notificationId = 'found_safe_${alertId}_$createdBy';
+          await _firestore.collection('notifications').doc(notificationId).set({
+            'title': '✅ Found Safe',
+            'body': '$fullName has been marked as found safe.',
+            'type': 'missing_person',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'targetMandal': data['userMandal'] ?? '',
+            'targetUserId': createdBy,
+            'relatedDocumentId': alertId,
+            'relatedAlertId': alertId,
+          });
+        }
+      }
+    } catch (e) {
+      // Log but do not fail the found-safe update if notification creation fails
+      print('Error creating found-safe notification: $e');
+    }
   }
 
   Future<void> deleteAlert(String alertId) async {

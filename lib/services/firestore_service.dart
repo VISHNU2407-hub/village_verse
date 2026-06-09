@@ -3,7 +3,6 @@ import '../models/user_model.dart';
 import '../models/guardian_model.dart';
 import '../models/complaint_model.dart';
 import '../models/post_model.dart';
-import '../models/announcement_model.dart';
 import '../models/notification_model.dart';
 
 class FirestoreService {
@@ -320,15 +319,26 @@ class FirestoreService {
     // Delete post document
     await _firestore.collection('posts').doc(postId).delete();
 
-    // Delete reactions subcollection
-    final reactionsSnapshot = await _firestore
-        .collection('posts')
-        .doc(postId)
-        .collection('reactions')
-        .get();
+    // Best-effort cleanup of reactions subcollection.
+    // The reactions list query requires read access to EVERY reaction document;
+    // since reaction doc IDs equal the reactor's UID, the post owner can only
+    // read reactions they created themselves. If other users' reactions exist,
+    // the query is denied — but the post document was already deleted, so we
+    // should not propagate this as a deletion failure.
+    try {
+      final reactionsSnapshot = await _firestore
+          .collection('posts')
+          .doc(postId)
+          .collection('reactions')
+          .get();
 
-    for (var doc in reactionsSnapshot.docs) {
-      await doc.reference.delete();
+      for (var doc in reactionsSnapshot.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      // Log and swallow — post deletion already succeeded.
+      // Orphaned reactions will be cleaned up by a background job if needed.
+      print('deletePost: reactions cleanup skipped ($e)');
     }
 
     // Note: Pinned posts are stored separately and will be handled by cleanup logic
@@ -472,50 +482,6 @@ class FirestoreService {
         .snapshots();
   }
 
-  // Announcement operations
-  Future<void> createAnnouncement(AnnouncementModel announcement) async {
-    final docRef = await _firestore
-        .collection('announcements')
-        .add(announcement.toFirestore());
-    // Update the announcement with the generated ID
-    await docRef.update({'id': docRef.id});
-  }
-
-  Future<List<AnnouncementModel>> getAnnouncements({int limit = 20}) async {
-    QuerySnapshot snapshot = await _firestore
-        .collection('announcements')
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
-
-    return snapshot.docs
-        .map(
-          (doc) => AnnouncementModel.fromFirestore(
-            doc.data() as Map<String, dynamic>,
-            doc.id,
-          ),
-        )
-        .toList();
-  }
-
-  Stream<QuerySnapshot> getAnnouncementsStream() {
-    return _firestore
-        .collection('announcements')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
-  Future<void> deleteAnnouncement(String announcementId) async {
-    await _firestore.collection('announcements').doc(announcementId).delete();
-  }
-
-  Future<void> updateAnnouncement(AnnouncementModel announcement) async {
-    await _firestore
-        .collection('announcements')
-        .doc(announcement.id)
-        .update(announcement.toFirestore());
-  }
-
   /// Finds admin users whose village and mandal match the given values.
   /// Used to notify admins when a complaint is submitted in their area.
   ///
@@ -579,29 +545,15 @@ class FirestoreService {
         .add(notification.toFirestore());
   }
 
-  /// Returns a real-time stream of notifications relevant to [userId] or
-  /// [userMandal].
-  ///
-  /// Filtering logic (applied client-side after fetching all notifications
-  /// ordered by creation time):
-  ///   1. If the notification has a non-empty [targetUserId], it is shown
-  ///      only to that specific user.
-  ///   2. Otherwise, if [targetMandal] is set, it is shown to all users
-  ///      in that mandal.
-  ///   3. If neither is set (empty targetMandal), the notification is
-  ///      considered global and shown to everyone.
-  ///
-  /// ⚠️ This currently fetches the **entire** notifications collection and
-  ///    filters client-side. For larger collections, restructure the data
-  ///    model (e.g. per-user subcollections or a `targets` array with
-  ///    `arrayContains`) to enable server-side filtering and avoid Firestore
-  ///    read quota pressure.
+  /// Returns a real-time stream of notifications targeted specifically
+  /// at [userId].
   Stream<List<NotificationModel>> getNotificationsForUser({
     required String userId,
     required String userMandal,
   }) {
     return _firestore
         .collection('notifications')
+        .where('targetUserId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
@@ -612,22 +564,6 @@ class FirestoreService {
                   doc.id,
                 ),
               )
-              .where((notification) {
-                final targetUserId = notification.targetUserId?.trim() ?? '';
-                final targetMandal = notification.targetMandal.trim();
-                final normalizedUserMandal = userMandal.trim();
-
-                if (targetUserId.isNotEmpty) {
-                  return targetUserId == userId;
-                }
-
-                if (targetMandal.isEmpty) {
-                  return true;
-                }
-
-                return targetMandal.toLowerCase() ==
-                    normalizedUserMandal.toLowerCase();
-              })
               .toList();
         });
   }
@@ -655,72 +591,46 @@ class FirestoreService {
     await _firestore.collection('notifications').doc(notificationId).delete();
   }
 
-  /// Fetches all notification docs relevant to [userId] / [userMandal]
-  /// (same filter logic as [getNotificationsForUser]) then marks every
-  /// unread one as read using a Firestore batch write.
-  ///
-  /// Returns the number of notifications that were marked as read.
+  /// Marks all unread notifications for [userId] as read using a
+  /// Firestore batch write.
   Future<int> markAllNotificationsAsRead({
     required String userId,
     required String userMandal,
   }) async {
     final snapshot = await _firestore
         .collection('notifications')
+        .where('targetUserId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .get();
 
-    final docs = snapshot.docs.where((doc) {
-      final data = doc.data();
-      final targetUserId = (data['targetUserId'] as String?)?.trim() ?? '';
-      final targetMandal = (data['targetMandal'] as String?)?.trim() ?? '';
-      final normalizedUserMandal = userMandal.trim();
-      final isRead = data['isRead'] == true;
-
-      // Skip already-read notifications.
-      if (isRead) return false;
-
-      // Apply same filter as getNotificationsForUser.
-      if (targetUserId.isNotEmpty) return targetUserId == userId;
-      if (targetMandal.isEmpty) return true;
-      return targetMandal.toLowerCase() == normalizedUserMandal.toLowerCase();
+    final unreadDocs = snapshot.docs.where((doc) {
+      return doc.data()['isRead'] != true;
     }).toList();
 
-    if (docs.isEmpty) return 0;
+    if (unreadDocs.isEmpty) return 0;
 
     final batch = _firestore.batch();
-    for (final doc in docs) {
+    for (final doc in unreadDocs) {
       batch.update(doc.reference, {'isRead': true});
     }
     await batch.commit();
 
-    return docs.length;
+    return unreadDocs.length;
   }
 
-  /// Fetches all notification docs relevant to [userId] / [userMandal]
-  /// (same filter logic as [getNotificationsForUser]) then deletes them
-  /// all using a Firestore batch write.
-  ///
-  /// Returns the number of notifications that were deleted.
+  /// Deletes all notifications targeted at [userId] using a Firestore
+  /// batch write.
   Future<int> deleteAllNotifications({
     required String userId,
     required String userMandal,
   }) async {
     final snapshot = await _firestore
         .collection('notifications')
+        .where('targetUserId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .get();
 
-    final docs = snapshot.docs.where((doc) {
-      final data = doc.data();
-      final targetUserId = (data['targetUserId'] as String?)?.trim() ?? '';
-      final targetMandal = (data['targetMandal'] as String?)?.trim() ?? '';
-      final normalizedUserMandal = userMandal.trim();
-
-      // Apply same filter as getNotificationsForUser.
-      if (targetUserId.isNotEmpty) return targetUserId == userId;
-      if (targetMandal.isEmpty) return true;
-      return targetMandal.toLowerCase() == normalizedUserMandal.toLowerCase();
-    }).toList();
+    final docs = snapshot.docs.toList();
 
     if (docs.isEmpty) return 0;
 

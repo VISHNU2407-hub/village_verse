@@ -64,6 +64,7 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
       final User? user = _auth.currentUser;
       if (user != null) {
         final userData = await _firestoreService.getUser(user.uid);
+        if (!mounted) return;
         setState(() {
           _currentUser = userData;
         });
@@ -325,6 +326,7 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                  maxLength: 100,
                   validator: (value) =>
                       AppHelpers.validateRequired(value, 'Complaint title'),
                   textInputAction: TextInputAction.next,
@@ -460,6 +462,7 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
                     alignLabelWithHint: true,
                   ),
                   maxLines: 5,
+                  maxLength: 1000,
                   validator: (value) => AppHelpers.validateRequired(
                     value,
                     'Complaint description',

@@ -168,6 +168,11 @@ class _CreateMissingPersonAlertScreenState
       return;
     }
 
+    if (_gender == null || _gender!.isEmpty) {
+      AppHelpers.showErrorSnackBar(context, 'Please select a gender');
+      return;
+    }
+
     if (_currentUser == null || _auth.currentUser == null) {
       AppHelpers.showErrorSnackBar(
         context,
@@ -194,7 +199,7 @@ class _CreateMissingPersonAlertScreenState
         photoUrl: photoUrl,
         fullName: _fullNameController.text.trim(),
         age: int.parse(_ageController.text.trim()),
-        gender: _gender!,
+        gender: _gender ?? '',
         lastSeenLocation: _lastSeenLocationController.text.trim(),
         missingDateTime: _missingDateTime!,
         clothesDescription: _clothesController.text.trim(),

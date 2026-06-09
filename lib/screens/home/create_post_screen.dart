@@ -91,12 +91,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   Future<void> _loadCurrentUser() async {
     try {
       final User? user = _auth.currentUser;
-      print('DEBUG: _loadCurrentUser - Current user UID: ${user?.uid}');
       if (user != null) {
         final userData = await _firestoreService.getUser(user.uid);
-        print(
-          'DEBUG: _loadCurrentUser - User data loaded: ${userData?.name}, village: ${userData?.village}, mandal: ${userData?.mandal}',
-        );
         if (mounted) {
           setState(() {
             _currentUser = userData;
@@ -104,7 +100,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         }
       }
     } catch (e) {
-      print('DEBUG: _loadCurrentUser - Error loading user data: $e');
       if (mounted) {
         AppHelpers.showErrorSnackBar(context, 'Failed to load user data: $e');
       }
@@ -320,6 +315,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                  maxLength: 120,
                   validator: (value) =>
                       AppHelpers.validateRequired(value, 'Post title'),
                 ),
@@ -337,6 +333,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     alignLabelWithHint: true,
                   ),
                   maxLines: 5,
+                  maxLength: 2000,
                   validator: (value) =>
                       AppHelpers.validateRequired(value, 'Post description'),
                 ),

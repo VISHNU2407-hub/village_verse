@@ -147,6 +147,25 @@ class _AdminComplaintDetailScreenState
         message,
       );
 
+      // Notify the citizen about the admin reply
+      try {
+        final notification = NotificationModel(
+          id: '',
+          title: '📩 New Reply on Your Complaint',
+          body: 'Admin replied: ${_replyController.text.trim()}',
+          type: 'complaint',
+          createdAt: DateTime.now(),
+          isRead: false,
+          targetMandal: widget.complaint.userMandal,
+          targetUserId: widget.complaint.userId,
+          relatedDocumentId: widget.complaint.complaintId,
+        );
+        await _firestoreService.createNotification(notification);
+      } catch (notificationError) {
+        // Log but do not fail reply sending if notification creation fails
+        print('Error creating reply notification: $notificationError');
+      }
+
       if (mounted) {
         _replyController.clear();
         AppHelpers.showSuccessSnackBar(context, 'Reply sent');
