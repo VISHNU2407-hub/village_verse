@@ -1,61 +1,116 @@
 # Firestore Composite Index Setup
 
 ## Issue
-The Info Feed query requires a composite index on the `posts` collection.
+The Community Posts queries require composite indexes on the `posts` collection.
+Without these indexes, Firestore will fail to execute the queries and the posts
+page will show blank/error states.
 
-## Required Index Configuration
+## Required Indexes
+
+### 1. Community Posts Feed (by Village + Mandal)
+Used by the **Posts** tab in the Community Posts screen to show posts from
+the user's local area.
 
 **Collection:** `posts`
 
 **Fields:**
-1. `village` - Ascending
-2. `createdAt` - Descending
+1. `userVillage` - Ascending
+2. `userMandal` - Ascending
+3. `createdAt` - Descending
 
-## Current Query
+**Query:**
 ```dart
 _firestore
-  .collection('posts')
-  .where('village', isEqualTo: village)
-  .orderBy('createdAt', descending: true)
-  .snapshots();
+    .collection('posts')
+    .where('userVillage', isEqualTo: village)
+    .where('userMandal', isEqualTo: mandal)
+    .orderBy('createdAt', descending: true)
+    .snapshots();
 ```
 
-## Steps to Create Index
+### 2. My Posts (by User ID)
+Used by the **My Posts** tab to show only the current user's posts.
 
-1. Go to Firebase Console: https://console.firebase.google.com/v1/r/project/village-assistance-app/firestore/indexes
+**Collection:** `posts`
 
-2. Click "Add Index"
+**Fields:**
+1. `userId` - Ascending
+2. `createdAt` - Descending
 
-3. Configure:
-   - Collection ID: `posts`
-   - Field 1: `village` (Ascending)
-   - Field 2: `createdAt` (Descending)
+**Query:**
+```dart
+_firestore
+    .collection('posts')
+    .where('userId', isEqualTo: userId)
+    .orderBy('createdAt', descending: true)
+    .snapshots();
+```
 
-4. Click "Create"
+### 3. Posts by Village (standalone)
+Used by other screens that filter posts solely by village.
 
-5. Wait for index to build (usually takes a few minutes)
+**Collection:** `posts`
 
-6. Verify index status is "Enabled"
+**Fields:**
+1. `userVillage` - Ascending
+2. `createdAt` - Descending
+
+**Query:**
+```dart
+_firestore
+    .collection('posts')
+    .where('userVillage', isEqualTo: village)
+    .orderBy('createdAt', descending: true)
+    .snapshots();
+```
+
+## Steps to Create Indexes
+
+### Option A: Deploy via Firebase CLI (Recommended)
+
+```bash
+# Install Firebase CLI if you haven't already
+npm install -g firebase-tools
+
+# Login to Firebase
+firebase login
+
+# Deploy indexes
+firebase deploy --only firestore:indexes
+```
+
+### Option B: Create Manually in Firebase Console
+
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project
+3. Go to **Firestore Database** → **Indexes** tab
+4. Click **Add Index**
+5. Configure each index as listed above
+6. Click **Create**
+7. Wait for indexes to build (usually takes a few minutes)
 
 ## Troubleshooting
 
-If the index error persists after creating the index:
+If the index error persists after creating the indexes:
 
 1. **Verify field names match exactly:**
-   - Firestore field: `village` (lowercase)
-   - Firestore field: `createdAt` (camelCase)
+   - Firestore fields: `userVillage`, `userMandal`, `userId`, `createdAt`
+   - Note: these are **not** the same as the legacy user model field mapping
+     (where Firestore `village` = user `mandal` and Firestore `street` = user `village`)
 
 2. **Verify index configuration:**
-   - village must be Ascending
-   - createdAt must be Descending
+   - Equality fields (`userVillage`, `userMandal`, `userId`) must be Ascending
+   - `createdAt` must be Descending
 
-3. **Check for additional filters:**
-   - The query should only have these two clauses
-   - No additional where() or orderBy() clauses
+3. **Wait for index build:**
+   - Index creation can take 1-5 minutes
+   - Check index status is "Enabled" before testing
 
-4. **Verify collection name:**
-   - Collection must be exactly `posts` (lowercase)
+4. **Check for offline persistence:**
+   - The app enables Firestore offline persistence for emergency use
+   - If the network is unavailable, cached data will be shown instead
 
 ## Verification
 
-After creating the index, the Info Feed should load without the index error.
+After creating the indexes, the Community Posts page should load correctly on
+both the **Posts** tab and **My Posts** tab.

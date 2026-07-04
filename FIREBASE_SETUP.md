@@ -56,7 +56,7 @@
 2. Select your project
 3. Go to **APIs & Services** → **OAuth consent screen**
 4. Configure the consent screen with:
-   - App name: Village Assistance App
+   - App name: Village One
    - User support email: your email
    - Developer contact information: your email
 5. Add required scopes:
@@ -146,7 +146,7 @@ flutter run
 - Regularly review authorized domains in Firebase Console
 
 ## Next Steps
-After setting up Firebase, your Village Assistance App will have:
+After setting up Firebase, your Village One app will have:
 - ✅ Google Sign-In authentication
 - ✅ User session management
 - ✅ Cross-platform support

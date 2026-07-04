@@ -4,7 +4,17 @@ import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  static final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
+
+  // Web client ID from the Firebase project's OAuth configuration.
+  // Required on Android as a fallback when the SHA-1 fingerprint in
+  // google-services.json doesn't match the current build keystore.
+  static const String _webClientId =
+      '954809297748-7p2k06jk6f01a4ks17vuatc3j24et6r9.apps.googleusercontent.com';
+
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email'],
+    serverClientId: _webClientId,
+  );
 
   // Get current user
   User? get currentUser => _auth.currentUser;
@@ -12,35 +22,35 @@ class AuthService {
   // Auth state changes stream
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // Sign in with Google
+  /// Signs in with Google.
+  ///
+  /// Returns `null` only when the user **cancels** the sign-in flow.
+  /// All other errors (network, config, FirebaseAuthException) are
+  /// **propagated to the caller** so they can show a meaningful error
+  /// message instead of a generic "sign-in failed" toast.
   Future<UserCredential?> signInWithGoogle() async {
-    try {
-      // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    // Trigger the authentication flow
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
-      if (googleUser == null) {
-        // User cancelled the sign-in
-        return null;
-      }
-
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      // Create a new credential
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // Once signed in, return the UserCredential
-      return await _auth.signInWithCredential(credential);
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error signing in with Google: $e');
-      }
+    // User cancelled the sign-in → return null (not an error)
+    if (googleUser == null) {
       return null;
     }
+
+    // Obtain the auth details from the request
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+
+    // Create a new credential
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    // Sign in and return the UserCredential.
+    // Any FirebaseAuthException, PlatformException, or network error
+    // propagates to the caller automatically.
+    return await _auth.signInWithCredential(credential);
   }
 
   // Sign out

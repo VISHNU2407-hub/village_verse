@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../models/guardian_model.dart';
@@ -211,17 +212,17 @@ class FirestoreService {
 
   // Post operations
   Future<void> createPost(PostModel post) async {
-    print('DEBUG: createPost - Creating post with ID: ${post.postId}');
-    print(
-      'DEBUG: createPost - Post userVillage: ${post.userVillage}, userMandal: ${post.userMandal}',
+    debugPrint('createPost - Creating post with ID: ${post.postId}');
+    debugPrint(
+      'createPost - Post userVillage: ${post.userVillage}, userMandal: ${post.userMandal}',
     );
-    print('DEBUG: createPost - Post data: ${post.toString()}');
+    debugPrint('createPost - Post data: ${post.toString()}');
     try {
       await _firestore
           .collection('posts')
           .doc(post.postId)
           .set(post.toFirestore());
-      print('DEBUG: createPost - Successfully saved post to Firestore');
+      debugPrint('createPost - Successfully saved post to Firestore');
 
       // Create in-app notifications for all users sharing the same
       // village (street) + mandal (village), excluding the post creator.
@@ -229,12 +230,12 @@ class FirestoreService {
         await _createCommunityPostNotifications(post);
       } catch (notificationError) {
         // Log but never fail post creation due to notification errors.
-        print(
-          'DEBUG: createPost - Error creating community notifications: $notificationError',
+        debugPrint(
+          'createPost - Error creating community notifications: $notificationError',
         );
       }
     } catch (e) {
-      print('DEBUG: createPost - Error saving post: $e');
+      debugPrint('createPost - Error saving post: $e');
       rethrow;
     }
   }
@@ -283,7 +284,7 @@ class FirestoreService {
   }
 
   Stream<QuerySnapshot> getPostsByVillage(String village) {
-    print('DEBUG: getPostsByVillage called with village: $village');
+    debugPrint('getPostsByVillage called with village: $village');
     return _firestore
         .collection('posts')
         .where('userVillage', isEqualTo: village)
@@ -295,8 +296,8 @@ class FirestoreService {
     String village,
     String mandal,
   ) {
-    print(
-      'DEBUG: getPostsByVillageAndMandal called with village: $village, mandal: $mandal',
+    debugPrint(
+      'getPostsByVillageAndMandal called with village: $village, mandal: $mandal',
     );
     return _firestore
         .collection('posts')
@@ -307,7 +308,7 @@ class FirestoreService {
   }
 
   Stream<QuerySnapshot> getPostsByUserId(String userId) {
-    print('DEBUG: getPostsByUserId called with userId: $userId');
+    debugPrint('getPostsByUserId called with userId: $userId');
     return _firestore
         .collection('posts')
         .where('userId', isEqualTo: userId)
@@ -338,7 +339,7 @@ class FirestoreService {
     } catch (e) {
       // Log and swallow — post deletion already succeeded.
       // Orphaned reactions will be cleaned up by a background job if needed.
-      print('deletePost: reactions cleanup skipped ($e)');
+      debugPrint('deletePost: reactions cleanup skipped ($e)');
     }
 
     // Note: Pinned posts are stored separately and will be handled by cleanup logic
@@ -523,9 +524,9 @@ class FirestoreService {
     String bloodGroup,
     String currentUserId,
   ) {
-    print('DEBUG: getBloodDonors called');
-    print('  bloodGroup: $bloodGroup');
-    print('  currentUserId: $currentUserId');
+    debugPrint('getBloodDonors called');
+    debugPrint('  bloodGroup: $bloodGroup');
+    debugPrint('  currentUserId: $currentUserId');
 
     return _firestore
         .collection('users')

@@ -126,7 +126,7 @@ class PowerButtonSosService : Service() {
 
         return NotificationCompat.Builder(this, notificationChannelId)
             .setSmallIcon(applicationInfo.icon)
-            .setContentTitle("Village Verse Protection")
+            .setContentTitle("SATS Protection")
             .setContentText("Safety monitoring active")
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)

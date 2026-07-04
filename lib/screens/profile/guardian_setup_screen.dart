@@ -611,14 +611,15 @@ class _GuardianSetupScreenState extends State<GuardianSetupScreen> {
             ),
 
             // Action Buttons
-            if (_guardians.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(20),
-                child: CustomButton(
-                  text: 'Continue to Main Screen',
-                  onPressed: _navigateToMainScreen,
-                ),
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: CustomButton(
+                text: _guardians.isNotEmpty
+                    ? 'Continue to Main Screen'
+                    : 'Continue without Guardians',
+                onPressed: _navigateToMainScreen,
               ),
+            ),
           ],
         ),
       ),

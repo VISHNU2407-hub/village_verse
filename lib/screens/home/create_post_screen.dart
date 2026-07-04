@@ -112,7 +112,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
 
     if (_currentUser == null) {
-      print('DEBUG: _postPost - User data not loaded');
+      debugPrint('_postPost - User data not loaded');
       AppHelpers.showErrorSnackBar(
         context,
         'User data not loaded. Please try again.',
@@ -122,7 +122,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     // Validate that user has required fields
     if (_currentUser!.village.isEmpty) {
-      print('DEBUG: _postPost - Village is empty');
+      debugPrint('_postPost - Village is empty');
       AppHelpers.showErrorSnackBar(
         context,
         'Your village is not set. Please update your profile first.',
@@ -131,7 +131,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
 
     if (_currentUser!.mandal.isEmpty) {
-      print('DEBUG: _postPost - Mandal is empty');
+      debugPrint('_postPost - Mandal is empty');
       AppHelpers.showErrorSnackBar(
         context,
         'Your mandal is not set. Please update your profile first.',
@@ -146,9 +146,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     try {
       final postId = DateTime.now().millisecondsSinceEpoch.toString();
-      print('DEBUG: _postPost - Creating post with ID: $postId');
-      print(
-        'DEBUG: _postPost - User village: ${_currentUser!.village}, mandal: ${_currentUser!.mandal}',
+      debugPrint('_postPost - Creating post with ID: $postId');
+      debugPrint(
+        '_postPost - User village: ${_currentUser!.village}, mandal: ${_currentUser!.mandal}',
       );
 
       // Build media array
@@ -156,8 +156,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
       // Upload images if selected
       if (_selectedImages.isNotEmpty) {
-        print(
-          'DEBUG: _postPost - Uploading ${_selectedImages.length} images for post $postId',
+        debugPrint(
+          '_postPost - Uploading ${_selectedImages.length} images for post $postId',
         );
 
         for (int i = 0; i < _selectedImages.length; i++) {
@@ -168,15 +168,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             _selectedImages[i],
           );
           media.add({'type': 'image', 'url': imageUrl});
-          print(
-            'DEBUG: _postPost - Image ${i + 1} uploaded successfully: $imageUrl',
+          debugPrint(
+            '_postPost - Image ${i + 1} uploaded successfully: $imageUrl',
           );
         }
       }
 
       // Upload PDF if selected
       if (_selectedPDF != null) {
-        print('DEBUG: _postPost - Uploading PDF for post $postId');
+        debugPrint('_postPost - Uploading PDF for post $postId');
         setState(() {
           _uploadProgress = 0.75;
         });
@@ -185,7 +185,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           _selectedPDFName!,
         );
         media.add({'type': 'pdf', 'url': pdfUrl, 'fileName': _selectedPDFName});
-        print('DEBUG: _postPost - PDF uploaded successfully: $pdfUrl');
+        debugPrint('_postPost - PDF uploaded successfully: $pdfUrl');
       }
 
       setState(() {
@@ -208,18 +208,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         createdAt: DateTime.now(),
       );
 
-      print('DEBUG: _postPost - Post object created: ${post.toString()}');
+      debugPrint('_postPost - Post object created: ${post.toString()}');
 
       // Save to Firestore
       await _firestoreService.createPost(post);
-      print('DEBUG: _postPost - Post saved to Firestore successfully');
+      debugPrint('_postPost - Post saved to Firestore successfully');
 
       if (mounted) {
         AppHelpers.showSuccessSnackBar(context, 'Post created successfully!');
         Navigator.pop(context, true);
       }
     } catch (e) {
-      print('DEBUG: _postPost - Error creating post: $e');
+      debugPrint('_postPost - Error creating post: $e');
       if (mounted) {
         AppHelpers.showErrorSnackBar(context, 'Failed to create post: $e');
       }

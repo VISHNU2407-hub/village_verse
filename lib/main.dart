@@ -1,20 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'firebase_options.dart';
 
 import 'screens/splash_screen.dart';
-import 'screens/auth_screen.dart';
 import 'screens/profile/guardian_setup_screen.dart';
-import 'screens/profile/profile_setup_screen.dart';
-import 'screens/home/main_screen.dart';
-import 'screens/permissions_setup_screen.dart';
 
-import 'services/firestore_service.dart';
 import 'services/guardian_alert_service.dart';
-import 'services/permissions_setup_service.dart';
 import 'services/stealth_sos_trigger_service.dart';
 
 void main() async {
@@ -22,19 +16,26 @@ void main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  // Enable Firestore offline persistence so the app works with cached
+  // data when the network is unavailable — critical for emergency use.
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+
   await GuardianAlertService.instance.initialize();
   await StealthSOSTriggerService.instance.initialize();
 
-  runApp(const VillageAssistanceApp());
+  runApp(const VillageOneApp());
 }
 
-class VillageAssistanceApp extends StatelessWidget {
-  const VillageAssistanceApp({super.key});
+class VillageOneApp extends StatelessWidget {
+  const VillageOneApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Village Assistance',
+      title: 'SATS',
       debugShowCheckedModeBanner: false,
       routes: {'/guardian-setup': (context) => const GuardianSetupScreen()},
       theme: ThemeData(
@@ -100,87 +101,11 @@ class VillageAssistanceApp extends StatelessWidget {
         ),
       ),
 
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-
-        builder: (context, snapshot) {
-          // Loading state
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SplashScreen();
-          }
-
-          final User? user = snapshot.data;
-
-          // User not logged in
-          if (user == null) {
-            return const AuthScreen();
-          }
-
-          // User logged in → check if profile exists
-          return FutureBuilder<bool>(
-            future: _checkProfileExists(user.uid),
-
-            builder: (context, profileSnapshot) {
-              // Loading while checking profile
-              if (profileSnapshot.connectionState == ConnectionState.waiting) {
-                return const SplashScreen();
-              }
-
-              // Error fallback - if error, assume profile doesn't exist
-              if (profileSnapshot.hasError) {
-                debugPrint('Profile check error: ${profileSnapshot.error}');
-                return const ProfileSetupScreen();
-              }
-
-              final bool profileExists = profileSnapshot.data ?? false;
-
-              // If profile doesn't exist → Profile Setup Screen
-              if (!profileExists) {
-                return const ProfileSetupScreen();
-              }
-
-              // Profile exists → Main Screen
-              return FutureBuilder<bool>(
-                future: PermissionsSetupService.isCompleted(),
-                builder: (context, permissionSnapshot) {
-                  if (permissionSnapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const SplashScreen();
-                  }
-
-                  final bool setupCompleted =
-                      permissionSnapshot.data ?? false;
-                  if (!setupCompleted) {
-                    return PermissionsSetupScreen(
-                      onCompleted: () {
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (_) => const MainScreen(),
-                          ),
-                        );
-                      },
-                    );
-                  }
-
-                  return const MainScreen();
-                },
-              );
-            },
-          );
-        },
-      ),
+      // SplashScreen handles the entire initial routing:
+      // 1. Animated splash for 2.5 seconds
+      // 2. Checks authentication status
+      // 3. Navigates to AuthScreen, ProfileSetupScreen, or MainScreen
+      home: const SplashScreen(),
     );
-  }
-
-  /// Check if user profile exists in Firestore
-  Future<bool> _checkProfileExists(String uid) async {
-    try {
-      final firestoreService = FirestoreService();
-      final profile = await firestoreService.getUser(uid);
-      return profile != null;
-    } catch (e) {
-      debugPrint('Profile Check Error: $e');
-      return false;
-    }
   }
 }

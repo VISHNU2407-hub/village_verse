@@ -469,7 +469,7 @@ class _BloodBankScreenState extends State<BloodBankScreen>
     }
 
     // Debug print before launch
-    print("FINAL WHATSAPP NUMBER: $formattedNumber");
+    debugPrint('FINAL WHATSAPP NUMBER: $formattedNumber');
 
     // Generate WhatsApp message
     final message =

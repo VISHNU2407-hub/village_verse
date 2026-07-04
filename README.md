@@ -1,6 +1,6 @@
-# village_verse
+# Village One
 
-A new Flutter project.
+A community safety and emergency assistance app built with Flutter.
 
 ## Getting Started
 

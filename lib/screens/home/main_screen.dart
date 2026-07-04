@@ -27,21 +27,75 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen>
+    with SingleTickerProviderStateMixin {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
 
   int _currentIndex = 0;
   UserModel? _currentUser;
 
+  // ── Staggered entrance animation ────────────────────────────────────
+  late final AnimationController _entryController;
+  late final Animation<double> _greetingAnim;
+  late final Animation<double> _sectionTitleAnim;
+  late final Animation<double> _sosCardAnim; // fade + scale
+  late final Animation<double> _medicalCardAnim;
+  late final Animation<double> _missingCardAnim;
+  late final Animation<double> _bloodCardAnim;
+  late final Animation<double> _moreFeaturesAnim;
   @override
   void initState() {
     super.initState();
+    _initEntryAnimations();
     _loadCurrentUser();
+    // Start the entrance animation immediately — content fades in while
+    // user data loads in the background.
+    _entryController.forward();
+  }
+
+  void _initEntryAnimations() {
+    // Total stagger window: ~700ms, controller gives 800ms for a brief
+    // settle before the last item finishes.
+    _entryController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    // Greeting card (start 0%, end 18%)
+    _greetingAnim = _makeStaggeredAnim(0.00, 0.18);
+
+    // "Emergency Services" section title (start 15%, end 30%)
+    _sectionTitleAnim = _makeStaggeredAnim(0.15, 0.30);
+
+    // SOS card gets a subtle scale entrance to draw attention (start 25%, end 42%)
+    _sosCardAnim = _makeStaggeredAnim(0.25, 0.42);
+
+    // Medical card (start 38%, end 54%)
+    _medicalCardAnim = _makeStaggeredAnim(0.38, 0.54);
+
+    // Missing Person card (start 50%, end 66%)
+    _missingCardAnim = _makeStaggeredAnim(0.50, 0.66);
+
+    // Blood Bank card (start 62%, end 78%)
+    _bloodCardAnim = _makeStaggeredAnim(0.62, 0.78);
+
+    // More Features section (start 72%, end 90%)
+    _moreFeaturesAnim = _makeStaggeredAnim(0.72, 0.90);
+  }
+
+  Animation<double> _makeStaggeredAnim(double start, double end) {
+    return Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entryController,
+        curve: Interval(start, end, curve: Curves.easeOutCubic),
+      ),
+    );
   }
 
   @override
   void dispose() {
+    _entryController.dispose();
     super.dispose();
   }
 
@@ -201,121 +255,227 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  // ── Animated entry helpers ──────────────────────────────────────────
+
+  /// Wraps [child] with a fade + slide-up entrance tied to [animation].
+  Widget _buildFadeSlideEntry({
+    required Animation<double> animation,
+    required Widget child,
+    double slideOffset = 30,
+  }) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: animation.value,
+          child: Transform.translate(
+            offset: Offset(0, slideOffset * (1.0 - animation.value)),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+
+  /// Wraps [child] with a fade + subtle scale-up entrance.
+  /// Used for the SOS card to subtly differentiate the most critical action.
+  Widget _buildFadeScaleEntry({
+    required Animation<double> animation,
+    required Widget child,
+    double scaleFrom = 0.92,
+  }) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: animation.value,
+          child: Transform.scale(
+            scale: scaleFrom + (1.0 - scaleFrom) * animation.value,
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+
+  // ── Alerts screen ───────────────────────────────────────────────────
+
   Widget _buildAlertsScreen() {
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           // Greeting Section
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppConstants.primaryColor,
-                  AppConstants.secondaryColor,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: AppConstants.primaryColor.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${AppHelpers.getGreeting()}, ${_currentUser?.name ?? 'User'} 👋',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'How can we help you today?',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.95),
-                    fontSize: 16,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
+          _buildFadeSlideEntry(
+            animation: _greetingAnim,
+            slideOffset: 20,
+            child: _buildGreetingSection(),
           ),
 
           const SizedBox(height: 28),
 
           // Emergency Section Title
-          Text(
-            'Emergency Services',
-            style: TextStyle(
-              color: Colors.grey[800],
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
+          _buildFadeSlideEntry(
+            animation: _sectionTitleAnim,
+            slideOffset: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Emergency Services',
+                  style: TextStyle(
+                    color: Colors.grey[800],
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tap to get immediate assistance',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                ),
+              ],
             ),
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            'Tap to get immediate assistance',
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
 
           const SizedBox(height: 20),
 
-          // Emergency Cards List
+          // Emergency Cards List — each card has its own staggered entrance.
+          // SOS uses a subtle scale-up; the rest use slide-up.
           ...AppConstants.emergencyTypes.map((emergency) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _buildEmergencyCard(emergency),
+            final bool isSos = emergency['type'] == 'sos';
+
+            if (isSos) {
+              return _buildFadeScaleEntry(
+                animation: _sosCardAnim,
+                child: _buildPaddedCard(emergency),
+              );
+            }
+
+            // Determine which animation to use based on emergency type.
+            final Animation<double> cardAnim;
+            switch (emergency['type'] as String) {
+              case 'medical':
+                cardAnim = _medicalCardAnim;
+                break;
+              case 'missing_person':
+                cardAnim = _missingCardAnim;
+                break;
+              case 'blood_bank':
+                cardAnim = _bloodCardAnim;
+                break;
+              default:
+                cardAnim = _medicalCardAnim;
+            }
+
+            return _buildFadeSlideEntry(
+              animation: cardAnim,
+              slideOffset: 24,
+              child: _buildPaddedCard(emergency),
             );
           }),
 
           const SizedBox(height: 32),
 
           // More Features Coming Soon Section
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey[300]!, width: 1),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.upcoming, color: Colors.grey[600], size: 20),
-                  const SizedBox(width: 12),
-                  Text(
-                    'More Features Coming Soon',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          _buildFadeSlideEntry(
+            animation: _moreFeaturesAnim,
+            slideOffset: 20,
+            child: _buildMoreFeaturesSection(),
           ),
 
           const SizedBox(height: 20),
         ],
       ),
+    );
+  }
+
+  Widget _buildGreetingSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppConstants.primaryColor,
+            AppConstants.secondaryColor,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppConstants.primaryColor.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${AppHelpers.getGreeting()}, ${_currentUser?.name ?? 'User'} 👋',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'How can we help you today?',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.95),
+              fontSize: 16,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMoreFeaturesSection() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[300]!, width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.upcoming, color: Colors.grey[600], size: 20),
+            const SizedBox(width: 12),
+            Text(
+              'More Features Coming Soon',
+              style: TextStyle(
+                color: Colors.grey[700],
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Returns [_buildEmergencyCard] wrapped in bottom padding.
+  /// Keeps the card-to-card spacing consistent without duplicating padding.
+  Widget _buildPaddedCard(Map<String, dynamic> emergency) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: _buildEmergencyCard(emergency),
     );
   }
 

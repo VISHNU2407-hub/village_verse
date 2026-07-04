@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class AppConstants {
   // App info
-  static const String appName = 'Village Assistance';
+  static const String appName = 'SATS';
   static const String appVersion = '1.0.0';
 
   // Colors
@@ -70,7 +70,7 @@ class AppConstants {
 
 class AppStrings {
   // Common
-  static const String appName = 'Village Assistance';
+  static const String appName = 'SATS';
   static const String loading = 'Loading...';
   static const String error = 'Error';
   static const String success = 'Success';

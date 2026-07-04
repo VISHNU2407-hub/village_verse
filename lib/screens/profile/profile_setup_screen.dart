@@ -444,7 +444,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
                 // Blood Group Field
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedBloodGroup.isNotEmpty
+                  value: _selectedBloodGroup.isNotEmpty
                       ? _selectedBloodGroup
                       : null,
                   decoration: InputDecoration(
@@ -552,7 +552,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
                 // Role Field
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedRole.isNotEmpty ? _selectedRole : null,
+                  value: _selectedRole.isNotEmpty ? _selectedRole : null,
                   decoration: InputDecoration(
                     labelText: 'Role',
                     prefixIcon: const Icon(Icons.person_outline),
